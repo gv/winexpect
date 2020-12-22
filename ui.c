@@ -17,10 +17,23 @@ static struct WinexpectUi *GetUi() {
 	return &globalUi; 
 }
 
+static void ShowError(const WCHAR* what) {
+	static WCHAR buf[128];
+	_snwprintf(buf, sizeof buf/sizeof(buf[0]), L"%s: error %x", what,
+		GetLastError());
+	MessageBox(NULL, buf, NULL, MB_ICONERROR|MB_SETFOREGROUND);
+}
+
 static void WuUpdate(struct WinexpectUi *ui) {
-	CountStr(&ui->search);
+	if (CountStr(&ui->search) < 0) {
+		unsigned err = GetLastError();
+		ShowError(L"CountStr");
+		ExitProcess(err);
+	} else if (ui->search.count.found != 0) {
+		PostQuitMessage(0);
+	}
 	InvalidateRect(ui->window, NULL, TRUE);
-	SetTimer(ui->window, TIMER_MAIN_ID, 1000, NULL); 
+	SetTimer(ui->window, TIMER_MAIN_ID, 1000, NULL);
 }
 
 static LRESULT CALLBACK HandleMessage(
@@ -40,8 +53,10 @@ static LRESULT CALLBACK HandleMessage(
 			10, /*x*/
 			1,  /*y*/
 			buf, _snwprintf(buf, sizeof buf/sizeof(buf[0]),
-				L"Waiting for '%s' (%d windows) %d:%02d", ui->search.str,
-				ui->search.count.total, durationSec/60, durationSec%60)
+				L"Waiting for '%s' (%d windows, %d unaccessible) %d:%02d",
+				ui->search.str, ui->search.count.total,
+				ui->search.count.error,
+				durationSec/60, durationSec%60)
 		);
 		EndPaint(w, &paints);
 		return 0;
@@ -50,13 +65,6 @@ static LRESULT CALLBACK HandleMessage(
 		return 0;
 	}
 	return DefWindowProc(w, m, wParam, lParam);
-}
-
-static void ShowError(const WCHAR* what) {
-	static WCHAR buf[128];
-	_snwprintf(buf, sizeof buf/sizeof(buf[0]), L"%s: error %x", what,
-		GetLastError());
-	MessageBox(NULL, buf, NULL, MB_ICONERROR|MB_SETFOREGROUND);
 }
 
 static int WuCreate(struct WinexpectUi *ui) {
@@ -111,7 +119,8 @@ int WINAPI wWinMain(
     return 1;
   }
   QueryPerformanceCounter((LARGE_INTEGER*)&ui->start);
-  ui->search.str = argv[1];
+  // It's [0] in CommandLineToArgvW! In main() would be [1]
+  ui->search.str = argv[0];
   if(!WuCreate(ui))
     return 1;
   WuUpdate(ui);
