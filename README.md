@@ -10,7 +10,35 @@ window text containing given string.
 Example JScript code
 ---
 
-todo
+```js
+function print(x) {
+	return WScript.Echo(x);
+}
+
+function fail(x) {
+	print(x + " (press a key to quit...)");
+	WScript.StdIn.Read(1);
+	WScript.Quit(1);
+}
+
+function run(x) {
+	print("Running " + x + " ...");
+	return sh.Run(x, 1, true);
+}
+
+var wexpect = WScript.ScriptFullName.replace(/[^\\]+$/, "winexpect.exe");
+function expect(str) {
+	var s = run(wexpect + ' "' + str + '"');
+	if(s) 
+		fail("winexpect failed, error " + s);
+}
+
+sh.AppActivate("Setup -");
+sk("abcde");
+sk(["{ENTER}", "{ENTER}"]);
+expect("Configure server");
+sk(["{ENTER}", "{TAB}", "{TAB}", "{ENTER}"]);
+```
 
 Bugs
 ---
